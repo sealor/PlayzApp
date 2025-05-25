@@ -3,16 +3,30 @@ package player
 import (
 	"encoding/json"
 	"errors"
-	"net"
-	"os"
-	"os/exec"
-	"time"
+	"log"
+	"sync"
 )
 
 type Player struct {
-	cmd       *exec.Cmd
-	conn      net.Conn
-	requestId int
+	ipc         MpvIpcReadWriter
+	mutex       sync.Mutex
+	responseMap map[int]ResponseResult
+	requestId   int
+	eventCh     chan []byte
+}
+
+type Command struct {
+	Command   []any `json:"command"`
+	RequestId int   `json:"request_id"`
+}
+
+type ResponseBase struct {
+	RequestId int `json:"request_id"`
+}
+
+type ResponseResult struct {
+	Value any
+	ErrCh chan error
 }
 
 var (
@@ -20,74 +34,90 @@ var (
 	ErrNotStarted     = errors.New("mpv was not started")
 )
 
-type Command struct {
-	Command   []any `json:"command"`
-	RequestId int   `json:"request_id"`
-}
-
 func (p *Player) Start() error {
-	if p.cmd != nil {
+	if p.ipc != nil {
 		return ErrAlreadyStarted
 	}
-
-	os.Remove("/tmp/mpvsocket")
-	p.cmd = exec.Command("mpv", "--input-ipc-server=/tmp/mpvsocket", "--idle", "--no-terminal")
-
-	p.cmd.Stdout = os.Stdout
-	p.cmd.Stderr = os.Stderr
-
-	if err := p.cmd.Start(); err != nil {
-		return err
-	}
-
-	// TODO: replace sleep with polling
-	time.Sleep(400 * time.Millisecond)
-
-	conn, err := net.Dial("unix", "/tmp/mpvsocket")
+	ipc, err := Open()
 	if err != nil {
 		return err
 	}
-	p.conn = conn
+
+	p.ipc = ipc
+	p.responseMap = make(map[int]ResponseResult)
+
+	go func() {
+		for {
+			var base ResponseBase
+			response, err := p.ipc.ReadResponse()
+			if err != nil {
+				log.Println(err)
+				break
+			}
+			err = json.Unmarshal(response, &base)
+			if err != nil {
+				log.Println(err)
+				break
+			}
+
+			// TODO: handle events with map too
+			// TODO: return registered event type or map
+			p.mutex.Lock()
+			result, ok := p.responseMap[base.RequestId]
+
+			if ok {
+				result.ErrCh <- json.Unmarshal(response, result.Value)
+				delete(p.responseMap, base.RequestId)
+			} else {
+				select {
+				case p.eventCh <- response:
+				default:
+				}
+			}
+			p.mutex.Unlock()
+		}
+	}()
 
 	return nil
 }
 
-func (p *Player) Exec(cmd ...any) (map[string]any, error) {
-	command := Command{Command: cmd, RequestId: p.requestId}
+func (p *Player) SetEventChannel(eventCh chan []byte) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	p.eventCh = eventCh
+}
+
+func (p *Player) Exec(out any, cmd ...any) (chan error, error) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
 	p.requestId++
-
-	input, err := json.Marshal(command)
-	if err != nil {
+	requestId := p.requestId
+	command := Command{cmd, requestId}
+	encoder := json.NewEncoder(p.ipc)
+	if err := encoder.Encode(command); err != nil {
 		return nil, err
 	}
 
-	if _, err = p.conn.Write(append(input, '\n')); err != nil {
-		return nil, nil
-	}
-
-	output := make(map[string]any)
-	decoder := json.NewDecoder(p.conn)
-	if err := decoder.Decode(&output); err != nil {
-		return nil, err
-	}
-
-	return output, nil
+	errCh := make(chan error)
+	p.responseMap[requestId] = ResponseResult{out, errCh}
+	return errCh, nil
 }
 
 func (p *Player) Stop() error {
-	if p.cmd == nil {
+	if p.ipc == nil {
 		return ErrNotStarted
 	}
 
-	p.conn.Close()
-
-	if err := p.cmd.Process.Kill(); err != nil {
+	if err := p.ipc.WriteRequest([]byte("quit")); err != nil {
 		return err
 	}
 
-	if err := p.cmd.Wait(); err != nil {
+	if err := p.ipc.Close(); err != nil {
 		return err
 	}
 
+	p.ipc = nil
 	return nil
 }
