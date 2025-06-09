@@ -16,8 +16,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	eventCh := make(chan []byte, 16)
-	mpv.SetEventChannel(eventCh)
+	eventCh := mpv.GetEventChannel()
 
 	input := bufio.NewScanner(os.Stdin)
 	for {
@@ -25,7 +24,7 @@ func main() {
 		for {
 			select {
 			case event := <-eventCh:
-				fmt.Print(string(event))
+				fmt.Println("event:", event)
 			default:
 				break loop
 			}
@@ -41,7 +40,7 @@ func main() {
 			continue
 		}
 
-		var out map[string]any
+		var out any
 		cmdFields := strings.Fields(cmd)
 		errCh, err := mpv.Exec(&out, stringToAnySlice(cmdFields)...)
 		if err != nil {
@@ -50,10 +49,9 @@ func main() {
 		}
 		if err := <-errCh; err != nil {
 			log.Println(err)
-			break
+		} else {
+			fmt.Println(out)
 		}
-
-		fmt.Println(out)
 	}
 
 	if input.Err() != nil {

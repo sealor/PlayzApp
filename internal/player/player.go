@@ -4,15 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
-	"sync"
 )
 
 type Player struct {
-	ipc         MpvIpcReadWriter
-	mutex       sync.Mutex
-	responseMap map[int]ResponseResult
-	requestId   int
-	eventCh     chan []byte
+	ipc        MpvIpcReadWriter
+	resHandler *ResponseHandler
 }
 
 type Command struct {
@@ -20,19 +16,14 @@ type Command struct {
 	RequestId int   `json:"request_id"`
 }
 
-type ResponseBase struct {
-	RequestId int `json:"request_id"`
-}
-
-type ResponseResult struct {
-	Value any
-	ErrCh chan error
-}
-
 var (
 	ErrAlreadyStarted = errors.New("mpv was already started")
 	ErrNotStarted     = errors.New("mpv was not started")
 )
+
+func (p *Player) NewPlayer(resHandler *ResponseHandler) *Player {
+	return &Player{nil, resHandler}
+}
 
 func (p *Player) Start() error {
 	if p.ipc != nil {
@@ -44,64 +35,42 @@ func (p *Player) Start() error {
 	}
 
 	p.ipc = ipc
-	p.responseMap = make(map[int]ResponseResult)
+
+	if p.resHandler == nil {
+		p.resHandler = NewResponseHandler(16)
+	}
 
 	go func() {
 		for {
-			var base ResponseBase
 			response, err := p.ipc.ReadResponse()
 			if err != nil {
 				log.Println(err)
+				log.Println(string(response))
 				break
 			}
-			err = json.Unmarshal(response, &base)
-			if err != nil {
+			if err = p.resHandler.HandleResponse(response); err != nil {
 				log.Println(err)
+				log.Println(string(response))
 				break
 			}
-
-			// TODO: handle events with map too
-			// TODO: return registered event type or map
-			p.mutex.Lock()
-			result, ok := p.responseMap[base.RequestId]
-
-			if ok {
-				result.ErrCh <- json.Unmarshal(response, result.Value)
-				delete(p.responseMap, base.RequestId)
-			} else {
-				select {
-				case p.eventCh <- response:
-				default:
-				}
-			}
-			p.mutex.Unlock()
 		}
 	}()
 
 	return nil
 }
 
-func (p *Player) SetEventChannel(eventCh chan []byte) {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-
-	p.eventCh = eventCh
+func (p *Player) GetEventChannel() <-chan any {
+	return p.resHandler.GetEventChannel()
 }
 
-func (p *Player) Exec(out any, cmd ...any) (chan error, error) {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-
-	p.requestId++
-	requestId := p.requestId
+func (p *Player) Exec(out any, cmd ...any) (<-chan error, error) {
+	requestId, errCh := p.resHandler.AddRequest(out)
 	command := Command{cmd, requestId}
 	encoder := json.NewEncoder(p.ipc)
 	if err := encoder.Encode(command); err != nil {
 		return nil, err
 	}
 
-	errCh := make(chan error)
-	p.responseMap[requestId] = ResponseResult{out, errCh}
 	return errCh, nil
 }
 

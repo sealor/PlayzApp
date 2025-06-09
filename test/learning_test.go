@@ -23,6 +23,19 @@ func TestUnmarshalPartOfJsonOnly(t *testing.T) {
 	assert.Equal(t, "value", pair.Key)
 }
 
+func TestUnmarshalWithMissingAttribute(t *testing.T) {
+	type Missing struct {
+		Missing string `json:"missing"`
+	}
+
+	var missing Missing
+	text := []byte(`{"val1": "value"}`)
+	err := json.Unmarshal(text, &missing)
+	require.NoError(t, err)
+
+	assert.Equal(t, "", missing.Missing)
+}
+
 func TestAnyChannel(t *testing.T) {
 	ch := make(chan any, 3)
 	ch <- 7
@@ -71,6 +84,19 @@ func TestChannelSync(t *testing.T) {
 	}(&out)
 	<-ch
 	assert.Equal(t, 7, out)
+}
+
+func TestOneWayChannel(t *testing.T) {
+	provideOneWayChannel := func() <-chan struct{} {
+		return make(chan struct{}, 1)
+	}
+
+	// invalid operation: cannot send to receive-only channel
+	// provideOneWayChannel() <- struct{}{}
+	select {
+	case <-provideOneWayChannel():
+	default:
+	}
 }
 
 func TestStringsSplit(t *testing.T) {
