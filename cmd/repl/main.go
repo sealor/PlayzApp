@@ -1,13 +1,14 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
 
 	"github.com/sealor/PlayzApp/internal/player"
+	"golang.org/x/term"
 )
 
 func main() {
@@ -16,26 +17,29 @@ func main() {
 		log.Fatal(err)
 	}
 
-	eventCh := mpv.GetEventChannel()
+	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer term.Restore(int(os.Stdin.Fd()), oldState)
 
-	input := bufio.NewScanner(os.Stdin)
-	for {
-	loop:
-		for {
-			select {
-			case event := <-eventCh:
-				fmt.Println("event:", event)
-			default:
-				break loop
-			}
+	t := term.NewTerminal(os.Stdin, "> ")
+
+	go func() {
+		for event := range mpv.GetEventChannel() {
+			fmt.Fprintln(t, "event:", event)
 		}
+	}()
 
-		fmt.Print("> ")
-		if !input.Scan() {
+	for {
+		cmd, err := t.ReadLine()
+		if err != nil {
+			if err != io.EOF {
+				fmt.Fprintln(t, "Fatal:", err)
+			}
 			break
 		}
 
-		cmd := input.Text()
 		if cmd == "" {
 			continue
 		}
@@ -44,22 +48,20 @@ func main() {
 		cmdFields := strings.Fields(cmd)
 		errCh, err := mpv.Exec(&out, stringToAnySlice(cmdFields)...)
 		if err != nil {
-			log.Println(err)
+			fmt.Fprintln(t, "Fatal:", err)
 			break
 		}
 		if err := <-errCh; err != nil {
-			log.Println(err)
+			fmt.Fprintln(t, "Error:", err)
 		} else {
-			fmt.Println(out)
+			fmt.Fprintln(t, out)
 		}
 	}
 
-	if input.Err() != nil {
-		log.Println(input.Err())
-	}
+	term.Restore(int(os.Stdin.Fd()), oldState)
 
 	if err := mpv.Stop(); err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 }
 

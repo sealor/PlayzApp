@@ -3,6 +3,7 @@ package player
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 )
 
@@ -44,8 +45,10 @@ func (p *Player) Start() error {
 		for {
 			response, err := p.ipc.ReadResponse()
 			if err != nil {
-				log.Println(err)
-				log.Println(string(response))
+				if err != io.EOF {
+					log.Println(err)
+					log.Println(string(response))
+				}
 				break
 			}
 			if err = p.resHandler.HandleResponse(response); err != nil {
