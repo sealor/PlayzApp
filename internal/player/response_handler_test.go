@@ -14,7 +14,7 @@ func TestIntDataRequestHandling(t *testing.T) {
 	var val int
 
 	requestID, errCh := r.AddRequest(&val)
-	err := r.HandleResponse(fmt.Appendf(nil, `{"request_id": %d, "data": 23}`, requestID))
+	err := r.HandleResponse(fmt.Appendf(nil, `{"request_id": %d, "error":"success", "data": 23}`, requestID))
 	require.NoError(t, err)
 
 	<-errCh

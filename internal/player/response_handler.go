@@ -67,7 +67,7 @@ func (r *ResponseHandler) HandleResponse(response []byte) error {
 	}
 }
 
-func (r *ResponseHandler) handleData(requestID int, response []byte) error {
+func (r *ResponseHandler) handleData(requestID int, data []byte) error {
 	r.mutex.Lock()
 	resResult, ok := r.requestMap[requestID]
 	delete(r.requestMap, requestID)
@@ -77,9 +77,14 @@ func (r *ResponseHandler) handleData(requestID int, response []byte) error {
 		return ErrUnknownRequest
 	}
 
-	err := json.Unmarshal(response, resResult.ValueRef)
-	resResult.ErrCh <- err
-	return err
+	if len(data) > 0 {
+		err := json.Unmarshal(data, resResult.ValueRef)
+		resResult.ErrCh <- err
+		return err
+	} else {
+		resResult.ErrCh <- nil
+		return nil
+	}
 }
 
 func (r *ResponseHandler) handleError(requestID int, error string) error {
