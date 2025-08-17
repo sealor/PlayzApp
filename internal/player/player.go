@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"log"
-	"sort"
 )
 
 type Player struct {
@@ -79,6 +78,24 @@ func (p *Player) Exec(out any, cmd ...any) (<-chan error, error) {
 	return errCh, nil
 }
 
+func (p *Player) GetCommandNames() ([]string, error) {
+	commandDefinitions := make([]map[string]any, 0)
+	errCh, err := p.Exec(&commandDefinitions, "get_property", "command-list")
+	if err != nil {
+		return nil, err
+	}
+	err = <-errCh
+	if err != nil {
+		return nil, err
+	}
+
+	commandNames := make([]string, 0)
+	for _, commandDefinition := range commandDefinitions {
+		commandNames = append(commandNames, commandDefinition["name"].(string))
+	}
+	return commandNames, nil
+}
+
 func (p *Player) GetPropertyNames() ([]string, error) {
 	propertyNames := []string{}
 	errCh, err := p.Exec(&propertyNames, "get_property", "property-list")
@@ -89,7 +106,6 @@ func (p *Player) GetPropertyNames() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(propertyNames)
 	return propertyNames, nil
 }
 

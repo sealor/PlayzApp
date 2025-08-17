@@ -100,11 +100,15 @@ func TestOneWayChannel(t *testing.T) {
 }
 
 func TestStringsSplit(t *testing.T) {
-	splits := strings.Split("hello   world", " ")
-	assert.Equal(t, []string{"hello", "", "", "world"}, splits)
+	assert.Equal(t, []string{"", ""}, strings.Split(" ", " "))
+	assert.Equal(t, []string{""}, strings.Split("", " "))
+	assert.Equal(t, []string{"hello", "", "", "world"}, strings.Split("hello   world", " "))
+	assert.Equal(t, []string{"", "hello", "", "", "world", ""}, strings.Split(" hello   world ", " "))
 }
 
 func TestStringsFields(t *testing.T) {
-	splits := strings.Fields("hello   world")
-	assert.Equal(t, []string{"hello", "world"}, splits)
+	assert.Equal(t, []string{}, strings.Fields(" "))
+	assert.Equal(t, []string{}, strings.Fields(""))
+	assert.Equal(t, []string{"hello", "world"}, strings.Fields("hello   world"))
+	assert.Equal(t, []string{"hello", "world"}, strings.Fields(" hello world "))
 }

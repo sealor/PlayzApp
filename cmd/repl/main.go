@@ -33,8 +33,14 @@ func main() {
 
 	t := term.NewTerminal(os.Stdin, "> ")
 	allPropertyNames, _ := mpv.GetPropertyNames()
+	sort.Strings(allPropertyNames)
+	allCommandNames, _ := mpv.GetCommandNames()
+	allCommandNames = append(allCommandNames, "get_property")
+	allCommandNames = append(allCommandNames, "set_property")
+	sort.Strings(allCommandNames)
+
 	t.AutoCompleteCallback = func(line string, pos int, key rune) (newLine string, newPos int, ok bool) {
-		return autoCompleteCallback(t, allPropertyNames, line, key)
+		return autoCompleteCallback(t, allCommandNames, allPropertyNames, line, key)
 	}
 
 	go func() {
@@ -77,31 +83,58 @@ func main() {
 	}
 }
 
-func autoCompleteCallback(t *term.Terminal, allPropertyNames []string, line string, key rune) (newLine string, newPos int, ok bool) {
+func autoCompleteCallback(t *term.Terminal, allCommandNames, allPropertyNames []string, line string, key rune) (newLine string, newPos int, ok bool) {
 	if key != '\t' {
 		return "", 0, false
 	}
 
-	matchingPropertyNames := []string{}
-	for _, properyName := range allPropertyNames {
-		if properyName == line {
-			matchingPropertyNames = []string{properyName}
-			break
-		}
-		if strings.HasPrefix(properyName, line) {
-			matchingPropertyNames = append(matchingPropertyNames, properyName)
-		}
+	words := strings.Fields(line)
+
+	if len(words) == 0 {
+		fmt.Fprintln(t, strings.Join(allCommandNames, ", "))
+		return "", 0, false
 	}
 
-	if len(matchingPropertyNames) == 1 {
-		newLine = "get_property " + matchingPropertyNames[0]
-		return newLine, len(newLine), true
+	if len(words) == 1 && (words[0] == "get_property" || words[0] == "set_property") {
+		words = append(words, "")
 	}
 
-	if len(matchingPropertyNames) > 1 {
-		fmt.Fprintln(t, strings.Join(matchingPropertyNames, ", "))
-		commonPrefix := findLongestCommonPrefix(matchingPropertyNames)
-		return commonPrefix, len(commonPrefix), true
+	if len(words) == 1 {
+		prefixMatches := findAllPrefixMatches(words[0], allCommandNames)
+
+		if len(prefixMatches) == 0 {
+			return "", 0, false
+		}
+
+		longestCommonPrefix := findLongestCommonPrefix(prefixMatches)
+		completion := longestCommonPrefix
+
+		if len(prefixMatches) == 1 {
+			completion = completion + " "
+		} else {
+			fmt.Fprintln(t, strings.Join(prefixMatches, ", "))
+		}
+
+		return completion, len(completion), true
+	}
+
+	if len(words) == 2 && (words[0] == "get_property" || words[0] == "set_property") {
+		prefixMatches := findAllPrefixMatches(words[1], allPropertyNames)
+
+		if len(prefixMatches) == 0 {
+			return "", 0, false
+		}
+
+		longestCommonPrefix := findLongestCommonPrefix(prefixMatches)
+		completion := words[0] + " " + longestCommonPrefix
+
+		if len(prefixMatches) == 1 {
+			completion = completion + " "
+		} else {
+			fmt.Fprintln(t, strings.Join(prefixMatches, ", "))
+		}
+
+		return completion, len(completion), true
 	}
 
 	return "", 0, false
@@ -113,6 +146,20 @@ func stringToAnySlice(s []string) []any {
 		r = append(r, i)
 	}
 	return r
+}
+
+func findAllPrefixMatches(prefix string, words []string) []string {
+	result := []string{}
+	for _, word := range words {
+		if word == prefix {
+			result = []string{word}
+			break
+		}
+		if strings.HasPrefix(word, prefix) {
+			result = append(result, word)
+		}
+	}
+	return result
 }
 
 func findLongestCommonPrefix(strs []string) string {
