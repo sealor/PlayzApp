@@ -8,14 +8,14 @@ import (
 
 type ResponseHandler struct {
 	mutex           sync.Mutex
-	lastRequestId   int
+	lastRequestID   int
 	requestMap      map[int]ResponseResult
 	newEventFuncMap map[string]func() any
 	eventCh         chan any
 }
 
 type ResponseBase struct {
-	RequestId int             `json:"request_id"`
+	RequestID int             `json:"request_id"`
 	Event     string          `json:"event"`
 	Data      json.RawMessage `json:"data"`
 	Error     string          `json:"error"`
@@ -40,10 +40,10 @@ func NewResponseHandler(eventCacheSize int) *ResponseHandler {
 func (r *ResponseHandler) AddRequest(outData any) (int, <-chan error) {
 	errCh := make(chan error, 1)
 	r.mutex.Lock()
-	r.lastRequestId++
-	r.requestMap[r.lastRequestId] = ResponseResult{outData, errCh}
+	r.lastRequestID++
+	r.requestMap[r.lastRequestID] = ResponseResult{outData, errCh}
 	r.mutex.Unlock()
-	return r.lastRequestId, errCh
+	return r.lastRequestID, errCh
 }
 
 func (r *ResponseHandler) HandleResponse(response []byte) error {
@@ -52,25 +52,25 @@ func (r *ResponseHandler) HandleResponse(response []byte) error {
 		return err
 	}
 
-	if base.RequestId == 0 && base.Event == "" {
+	if base.RequestID == 0 && base.Event == "" {
 		return ErrUnknownResponse
 	}
 
-	if base.RequestId > 0 {
+	if base.RequestID > 0 {
 		if base.Error == "success" {
-			return r.handleData(base.RequestId, base.Data)
+			return r.handleData(base.RequestID, base.Data)
 		} else {
-			return r.handleError(base.RequestId, base.Error)
+			return r.handleError(base.RequestID, base.Error)
 		}
 	} else {
 		return r.handleEvent(base.Event, response)
 	}
 }
 
-func (r *ResponseHandler) handleData(requestId int, response []byte) error {
+func (r *ResponseHandler) handleData(requestID int, response []byte) error {
 	r.mutex.Lock()
-	resResult, ok := r.requestMap[requestId]
-	delete(r.requestMap, requestId)
+	resResult, ok := r.requestMap[requestID]
+	delete(r.requestMap, requestID)
 	r.mutex.Unlock()
 
 	if !ok {
@@ -82,10 +82,10 @@ func (r *ResponseHandler) handleData(requestId int, response []byte) error {
 	return err
 }
 
-func (r *ResponseHandler) handleError(requestId int, error string) error {
+func (r *ResponseHandler) handleError(requestID int, error string) error {
 	r.mutex.Lock()
-	resResult, ok := r.requestMap[requestId]
-	delete(r.requestMap, requestId)
+	resResult, ok := r.requestMap[requestID]
+	delete(r.requestMap, requestID)
 	r.mutex.Unlock()
 
 	if !ok {

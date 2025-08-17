@@ -1,3 +1,4 @@
+// Package player provides an API for mpv.
 package player
 
 import (
@@ -14,7 +15,7 @@ type Player struct {
 
 type Command struct {
 	Command   []any `json:"command"`
-	RequestId int   `json:"request_id"`
+	RequestID int   `json:"request_id"`
 }
 
 var (
@@ -67,8 +68,8 @@ func (p *Player) GetEventChannel() <-chan any {
 }
 
 func (p *Player) Exec(out any, cmd ...any) (<-chan error, error) {
-	requestId, errCh := p.resHandler.AddRequest(out)
-	command := Command{cmd, requestId}
+	requestID, errCh := p.resHandler.AddRequest(out)
+	command := Command{cmd, requestID}
 	encoder := json.NewEncoder(p.ipc)
 	if err := encoder.Encode(command); err != nil {
 		return nil, err

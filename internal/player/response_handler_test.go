@@ -13,8 +13,8 @@ func TestIntDataRequestHandling(t *testing.T) {
 	r := NewResponseHandler(16)
 	var val int
 
-	requestId, errCh := r.AddRequest(&val)
-	err := r.HandleResponse(fmt.Appendf(nil, `{"request_id": %d, "data": 23}`, requestId))
+	requestID, errCh := r.AddRequest(&val)
+	err := r.HandleResponse(fmt.Appendf(nil, `{"request_id": %d, "data": 23}`, requestID))
 	require.NoError(t, err)
 
 	<-errCh
@@ -25,8 +25,8 @@ func TestErrorOnRequestHandling(t *testing.T) {
 	r := NewResponseHandler(16)
 	var val int
 
-	requestId, errCh := r.AddRequest(&val)
-	err := r.HandleResponse(fmt.Appendf(nil, `{"request_id": %d, "error": "invalid parameter"}`, requestId))
+	requestID, errCh := r.AddRequest(&val)
+	err := r.HandleResponse(fmt.Appendf(nil, `{"request_id": %d, "error": "invalid parameter"}`, requestID))
 	require.NoError(t, err)
 
 	assert.Equal(t, errors.New("invalid parameter"), <-errCh)
