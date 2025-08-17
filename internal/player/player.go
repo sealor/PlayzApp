@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"sort"
 )
 
 type Player struct {
@@ -76,6 +77,20 @@ func (p *Player) Exec(out any, cmd ...any) (<-chan error, error) {
 	}
 
 	return errCh, nil
+}
+
+func (p *Player) GetPropertyNames() ([]string, error) {
+	propertyNames := []string{}
+	errCh, err := p.Exec(&propertyNames, "get_property", "property-list")
+	if err != nil {
+		return nil, err
+	}
+	err = <-errCh
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(propertyNames)
+	return propertyNames, nil
 }
 
 func (p *Player) Stop() error {
