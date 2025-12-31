@@ -11,7 +11,7 @@ var mpv = player.Player{}
 
 func servePage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type:", "text/html")
-	w.Write([]byte(`
+	_, _ = w.Write([]byte(`
 		<!DOCTYPE html>
 		<html>
 		<head>
@@ -50,7 +50,7 @@ func main() {
 	http.HandleFunc("/api/command", handleCommand)
 
 	log.Println("Server is running")
-	http.ListenAndServe(":8080", nil)
+	_ = http.ListenAndServe(":8080", nil)
 
 	if err := mpv.Stop(); err != nil {
 		log.Fatal(err)
