@@ -35,7 +35,9 @@ func Open() (MpvIpcReadWriter, error) {
 
 	parentConn := os.NewFile(uintptr(fds[0]), "parentConn")
 	childConn := os.NewFile(uintptr(fds[1]), "childConn")
-	defer childConn.Close()
+	defer func() {
+		_ = childConn.Close()
+	}()
 
 	cmd := exec.Command("mpv", "--input-ipc-client=fd://3", "--idle", "--no-terminal")
 	cmd.ExtraFiles = []*os.File{childConn}
@@ -57,25 +59,26 @@ func (m *MpvIpc) Close() error {
 	if _, err := m.cmdIO.Write([]byte("quit\n")); err != nil {
 		return err
 	}
-	if err := m.cmdIO.Close(); err != nil {
-		return nil
-	}
 
-	quitted := make(chan error)
-	go func() { quitted <- m.cmd.Wait() }()
+	closedCh := make(chan error)
+	go func() { closedCh <- m.cmd.Wait() }()
 
 	select {
-	case err := <-quitted:
+	case err := <-closedCh:
 		return err
 	case <-time.After(time.Second):
-		log.Println("quitting mpv failed")
+		log.Println("closing mpv failed")
 		log.Println("kill mpv")
 		if err := m.cmd.Process.Kill(); err != nil {
 			return err
 		}
 	}
 
+	_ = m.cmdIO.Close()
+	m.cmdIO = nil
+	m.cmdBufReader = nil
 	m.cmd = nil
+
 	return nil
 }
 
