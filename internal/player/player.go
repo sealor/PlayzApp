@@ -23,7 +23,7 @@ var (
 	ErrNotStarted     = errors.New("mpv was not started")
 )
 
-func (p *Player) NewPlayer(resHandler *ResponseHandler) *Player {
+func NewPlayer(resHandler *ResponseHandler) *Player {
 	return &Player{nil, resHandler}
 }
 

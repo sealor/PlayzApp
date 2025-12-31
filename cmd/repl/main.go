@@ -20,7 +20,7 @@ func main() {
 	fmt.Println("- set_property volume 95")
 	fmt.Println("- stop")
 
-	mpv := player.Player{}
+	mpv := player.NewPlayer(nil)
 	if err := mpv.Start(); err != nil {
 		log.Fatal(err)
 	}
