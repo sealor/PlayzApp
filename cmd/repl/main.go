@@ -24,6 +24,11 @@ func main() {
 	if err := mpv.Start(); err != nil {
 		log.Fatal(err)
 	}
+	defer func() {
+		if err := mpv.Stop(); err != nil {
+			log.Println(err)
+		}
+	}()
 
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
@@ -47,7 +52,10 @@ func main() {
 
 	go func() {
 		for event := range mpv.GetEventChannel() {
-			fmt.Fprintln(t, "event:", event)
+			_, err := fmt.Fprintln(t, "event:", event)
+			if err != nil {
+				log.Println(err, event)
+			}
 		}
 	}()
 
@@ -55,7 +63,7 @@ func main() {
 		cmd, err := t.ReadLine()
 		if err != nil {
 			if err != io.EOF {
-				fmt.Fprintln(t, "Fatal:", err)
+				log.Fatal(err)
 			}
 			break
 		}
@@ -68,18 +76,19 @@ func main() {
 		cmdFields := strings.Fields(cmd)
 		errCh, err := mpv.Exec(&out, stringToAnySlice(cmdFields)...)
 		if err != nil {
-			fmt.Fprintln(t, "Fatal:", err)
-			break
+			log.Fatal(err)
 		}
-		if err := <-errCh; err != nil {
-			fmt.Fprintln(t, "Error:", err)
-		} else {
-			fmt.Fprintln(t, out)
-		}
-	}
 
-	if err := mpv.Stop(); err != nil {
-		log.Println(err)
+		var printErr error
+		if err := <-errCh; err != nil {
+			_, printErr = fmt.Fprintln(t, "Error:", err)
+		} else {
+			_, printErr = fmt.Fprintln(t, out)
+		}
+
+		if printErr != nil {
+			log.Fatal(printErr)
+		}
 	}
 }
 
@@ -91,7 +100,10 @@ func autoCompleteCallback(t *term.Terminal, allCommandNames, allPropertyNames []
 	words := strings.Fields(line)
 
 	if len(words) == 0 {
-		fmt.Fprintln(t, strings.Join(allCommandNames, ", "))
+		_, err := fmt.Fprintln(t, strings.Join(allCommandNames, ", "))
+		if err != nil {
+			log.Fatal(err)
+		}
 		return "", 0, false
 	}
 
@@ -112,7 +124,10 @@ func autoCompleteCallback(t *term.Terminal, allCommandNames, allPropertyNames []
 		if len(prefixMatches) == 1 {
 			completion = completion + " "
 		} else {
-			fmt.Fprintln(t, strings.Join(prefixMatches, ", "))
+			_, err := fmt.Fprintln(t, strings.Join(prefixMatches, ", "))
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 
 		return completion, len(completion), true
@@ -131,7 +146,10 @@ func autoCompleteCallback(t *term.Terminal, allCommandNames, allPropertyNames []
 		if len(prefixMatches) == 1 {
 			completion = completion + " "
 		} else {
-			fmt.Fprintln(t, strings.Join(prefixMatches, ", "))
+			_, err := fmt.Fprintln(t, strings.Join(prefixMatches, ", "))
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 
 		return completion, len(completion), true
