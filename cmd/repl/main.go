@@ -29,7 +29,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer term.Restore(int(os.Stdin.Fd()), oldState)
+	defer func() {
+		_ = term.Restore(int(os.Stdin.Fd()), oldState)
+	}()
 
 	t := term.NewTerminal(os.Stdin, "> ")
 	allPropertyNames, _ := mpv.GetPropertyNames()
@@ -75,8 +77,6 @@ func main() {
 			fmt.Fprintln(t, out)
 		}
 	}
-
-	term.Restore(int(os.Stdin.Fd()), oldState)
 
 	if err := mpv.Stop(); err != nil {
 		log.Println(err)
